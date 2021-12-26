@@ -36,7 +36,7 @@ async def on_ready():
         "Picture.db",
         [
             "picture (id INTEGER NOT NULL UNIQUE PRIMARY KEY, link TEXT NOT NULL UNIQUE, title TEXT NOT NULL, author_id INTEGER NOT NULL, tags TEXT NOT NULL, thumbs_up INTEGER NOT NULL, can_remix INTEGER NOT NULL)",
-            "thumbs_up (id INTEGER NOT NULL UNIQUE PRIMARY KEY, _id TEXT NOT NULL)"
+            "thumbs_up (id INTEGER NOT NULL UNIQUE PRIMARY KEY, _id TEXT)"
         ],
     )
     await make_table(
