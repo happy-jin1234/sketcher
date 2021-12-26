@@ -1,4 +1,3 @@
-from logging import PlaceHolder, error
 import disnake
 from disnake.ext import commands
 import aiosqlite
@@ -24,6 +23,7 @@ class Join(disnake.ui.View):
     @disnake.ui.button(label="취소", emoji="❌", style=disnake.ButtonStyle.red)
     async def click_cancel(self, button: disnake.ui.Button, ctx: disnake.MessageInteraction):
         button.disabled = True
+        self.click_ok.disabled = True
         embed = disnake.Embed(title="취소", description="가입이 취소되었습니다", color=errorcolor)
         await ctx.response.edit_message(embed=embed, view=self)
 
@@ -82,7 +82,7 @@ class Leave(disnake.ui.View):
                 button.disabled = True
                 self.click_cancel.disabled = True
                 embed = disnake.Embed(title="오류", description="먼저 가입해주세요", color=errorcolor)
-                return await ctx.response.edit_message(embed=embed)
+                return await ctx.response.edit_message(embed=embed, view=self)
             await cursor.execute(f"DELETE FROM user WHERE id = {ctx.author.id}")
         async with aiosqlite.connect('Picture.db', isolation_level=None) as cursor:
             async with cursor.execute(f"SELECT * FROM picture WHERE author_id = {ctx.author.id}") as result:
@@ -199,7 +199,8 @@ class Random1(disnake.ui.View):
         async with aiosqlite.connect('Picture.db', isolation_level=None) as cursor:
             async with cursor.execute(f"SELECT * FROM thumbs_up WHERE id = {ctx.author.id}") as result:
                 data = await result.fetchone()
-            if data == None:
+            if data == None or data[1] == None:
+                await cursor.execute(f'INSERT INTO thumbs_up VALUES (?, ?)', (ctx.author.id, ""))
                 data = [ctx.author.id, ""]
             if not data[1].find(str(self._id)) == -1:
                 data = data[1].replace(f"{str(self._id)},", "")
