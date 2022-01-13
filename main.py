@@ -9,10 +9,10 @@ import datetime
 
 intents = disnake.Intents.all()
 bot = commands.Bot(
-    command_prefix="ss",
+    command_prefix="s",
     intents=intents,
-    owner_ids=[671231351013376015],
-    test_guilds=[911676954317582368],
+    owner_ids=[671231351013376015, 689108507831697448],
+    allowed_mentions = disnake.AllowedMentions.none(),
 )
 bot.remove_command("help")
 embedcolor = 0x0000FF
@@ -64,7 +64,7 @@ async def on_ready():
 
     @tasks.loop(hours=5)
     async def backup():
-        await (await bot.fetch_channel(890483416041160744)).send(
+        await (await bot.fetch_channel(926352023862005811)).send(
             str(datetime.datetime.utcnow() + datetime.timedelta(hours=9)),
             files=[disnake.File("Picture.db"), disnake.File("User.db")],
         )
