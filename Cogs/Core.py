@@ -8,6 +8,13 @@ class Core(commands.Cog, name="Core"):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.command(help="개발자를 표시합니다")
+    async def hellothisisverification(self, ctx):
+        jin = await self.bot.fetch_user(671231351013376015)
+        embed = disnake.Embed(description=f"개발자는 {jin}(671231351013376015) 입니다", color=embedcolor)
+        embed.set_footer(text=ctx.author, icon_url=ctx.author.avatar)
+        await ctx.reply(embed=embed)
+
     @commands.slash_command(description="봇의 메세지 지연시간을 표시합니다")
     async def ping(self, ctx):
         embed = disnake.Embed(title="<a:infloading:921601343154716705> 핑 측정중", color=embedcolor)
@@ -52,6 +59,7 @@ class Core(commands.Cog, name="Core"):
         )            
         cog_list = [
             "Core",
+            "Picture"
         ]
         for x in cog_list:
             cog_data = self.bot.get_cog(x)
