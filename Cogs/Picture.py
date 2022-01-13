@@ -1,3 +1,4 @@
+from threading import ExceptHookArgs
 import disnake
 from disnake.ext import commands
 import aiosqlite
@@ -44,7 +45,7 @@ class Join2(disnake.ui.View):
                 self.click_no.disabled = True
                 embed = disnake.Embed(title="취소", description="이미 가입하셨습니다", color=errorcolor)
                 return await ctx.response.edit_message(embed=embed)
-            await cursor.execute(f'INSERT INTO user VALUES ({ctx.author.id}, 1, 10, 0, {today})')
+            await cursor.execute(f'INSERT INTO user VALUES (?, ?, ?, ?, ?)', (ctx.author.id, 1, 10, 0, today))
         button.disabled = True
         self.click_no.disabled = True
         embed = disnake.Embed(title="가입됐습니다", description="환영합니다 😀", color=embedcolor)
@@ -87,8 +88,7 @@ class Leave(disnake.ui.View):
         async with aiosqlite.connect('Picture.db', isolation_level=None) as cursor:
             async with cursor.execute(f"SELECT * FROM picture WHERE author_id = {ctx.author.id}") as result:
                 data = await result.fetchall()
-            if not data is None:
-                await cursor.execute(f"DELETE FROM picture WHERE author_id = {ctx.author.id}") 
+            await cursor.execute(f"DELETE FROM picture WHERE author_id = {ctx.author.id}") 
         button.disabled = True
         self.click_cancel.disabled = True
         embed = disnake.Embed(title="탈퇴됐습니다", description="안녕히 가세요 😥", color=embedcolor)
@@ -114,7 +114,7 @@ class Upload1(disnake.ui.View):
                 data = await result.fetchone()
             if data is None:
                 data = [0, "0", 0, 0, 0]
-        embed = disnake.Embed(title="이어그리기(리믹스)를 허용하시겠습니까?", description="이어그리기(리믹스) 허용시 다른 유저가 작품을 이어서 그리거나 오마주 할 수 있습니다", color=embedcolor)
+        embed = disnake.Embed(title="이어그리기(리믹스)를 허용하시겠습니까?", description="이어그리기(리믹스) 허용시 다른 유저가 작품을 이어서 그리거나 리믹스 할 수 있습니다", color=embedcolor)
         await ctx.response.edit_message(embed=embed, view=Upload2(data, self.picture, self.title))
         
 
@@ -161,11 +161,6 @@ class Random1(disnake.ui.View):
         self.channel = channel
         if self.remix == 0:
             self.click_remix.disabled = True
-        if author == user.id:
-            self.click_remix.disabled = True
-            self.click_thumb.disabled = True
-        else:
-            self.click_delete.disabled = True
 
     @disnake.ui.button(label="신고", emoji="🚨", style=disnake.ButtonStyle.red)
     async def click_report(self, button: disnake.ui.Button, ctx: disnake.MessageInteraction):
@@ -199,26 +194,32 @@ class Random1(disnake.ui.View):
         async with aiosqlite.connect('Picture.db', isolation_level=None) as cursor:
             async with cursor.execute(f"SELECT * FROM thumbs_up WHERE id = {ctx.author.id}") as result:
                 data = await result.fetchone()
-            if data == None or data[1] == None:
+            if data == None:
                 await cursor.execute(f'INSERT INTO thumbs_up VALUES (?, ?)', (ctx.author.id, ""))
                 data = [ctx.author.id, ""]
             if not data[1].find(str(self._id)) == -1:
-                data = data[1].replace(f"{str(self._id)},", "")
+                data = data[1].replace(f"{self._id},", "")
                 await cursor.execute(f"UPDATE thumbs_up SET _id = ? WHERE id = {ctx.author.id}", (data,))
                 await cursor.execute(f"UPDATE picture SET thumbs_up = thumbs_up - 1 WHERE id = {self._id}")
                 embed = disnake.Embed(title="좋아요가 취소되었습니다", description="좋아요 버튼 다시 클릭으로 취소되었습니다", color=embedcolor)
+                embed.set_footer(text=ctx.author, icon_url=ctx.author.avatar)
                 await ctx.send(embed=embed)
             else:
                 data = data[1] + f"{str(self._id)},"
                 await cursor.execute(f"UPDATE thumbs_up SET _id = ? WHERE id = {ctx.author.id}", (data,))
                 await cursor.execute(f"UPDATE picture SET thumbs_up = thumbs_up + 1 WHERE id = {self._id}")
                 embed = disnake.Embed(title="좋아요가 적용되었습니다", description="좋아요 버튼 클릭으로 적용되었습니다", color=embedcolor)
+                embed.set_footer(text=ctx.author, icon_url=ctx.author.avatar)
                 await ctx.send(embed=embed)
 
     @disnake.ui.button(label="삭제", emoji="🗑", style=disnake.ButtonStyle.red, row=1)
     async def click_delete(self, button: disnake.ui.Button, ctx: disnake.MessageInteraction):
-        embed = disnake.Embed(title="그림을 삭제하시겠습니까?", description="삭제된 그림은 복구되지 않습니다", color=errorcolor)
-        await ctx.send(embed=embed, view=Delete(self._id))
+        if self.author == self.user.id:
+            embed = disnake.Embed(title="그림을 삭제하시겠습니까?", description="삭제된 그림은 복구되지 않습니다", color=errorcolor)
+            await ctx.send(embed=embed, view=Delete(self._id))
+        else:
+            embed = disnake.Embed(title="본인 작품만 지울수 있어요", description="~~설마 남의 작품을 지우고 싶은건 아니죠?~~", color=errorcolor)
+            await ctx.send(embed=embed, ephemeral=True)
 
 class Report(disnake.ui.Select):
     def __init__(self, user, _id, url, channel):
@@ -227,12 +228,12 @@ class Report(disnake.ui.Select):
         self.url = url
         self.channel = channel
         options = [disnake.SelectOption(label="1. 도용 그림", description="개발자에게 친추후 원본 링크 보내주세요"),
-        disnake.SelectOption(label="2. 광고 그림", description="커미션 홍보는 제외되요"),
+        disnake.SelectOption(label="2. 광고 그림", description="커미션 홍보는 제외돼요"),
         disnake.SelectOption(label="3. 방송통신심의위원회 SafeNet 15세 기준 위반", description="개발자 판단이긴 하지만 공정하게 판단할거에요")]
         super().__init__(placeholder="신고사유를 골라주세요", min_values=1, max_values=1, options=options)
 
     async def callback(self, ctx: disnake.MessageInteraction):
-        embed = disnake.Embed(title="신고가 접수되었습니다", description="허위신고시 제제를 받을수 있습니다", color=embedcolor)
+        embed = disnake.Embed(title="신고가 접수되었습니다", description="허위신고시 제재를 받을수 있습니다", color=embedcolor)
         self.disabled = True
         await ctx.response.edit_message(embed=embed, view=self.view)
         embed = disnake.Embed(title="신고", description=f"신고자 {self.user}\n그림아이디 {self._id}\n사유 {self.values[0]}", color=errorcolor)
@@ -285,9 +286,7 @@ class Picture(commands.Cog, name="Picture"):
 
     @commands.slash_command(description="그림을 업로드합니다")
     async def upload(self, ctx, picture : str = commands.Param(description="업로드할 그림의 링크"), title : str = commands.Param(description="업로드할 그림의 제목")):
-        #/*, –, ‘, “, ?, #, (, ), ;, @, =, *, +, union, select, drop, update, from, where, join, substr, user_tables, user_table_columns, information_schema, sysobject, table_schema, declare, dual
-        #정규식으로 검사하기(SQL인젝션)
-        if picture.startswith("http") and picture.lower().endswith("png") or picture.lower().endswith("jpg") or picture.lower().endswith("jpeg") or picture.lower().endswith("gif"):
+        if picture.startswith("http") and picture.lower().endswith(("png", "jpg", "jpeg", "gif")):
             embed = disnake.Embed(title="그림을 업로드하시겠습니까?", description="규칙을 지켜주세요\n1.도용은 안돼요\n2.광고는 안돼요(커미션 제외)\n3.방송통신심의위원회 SafeNet 기준으로 15세 등급으로 맞춰서 올려주세요", color=embedcolor)
             embed.set_image(url=picture)
             await ctx.send(embed=embed, view=Upload1(picture, title))
@@ -311,6 +310,7 @@ class Picture(commands.Cog, name="Picture"):
         embed = disnake.Embed(title=one[2], description=f"아이디 : {one[0]}\n작가 : `{author.name}`\n태그 : {one[4]}\n좋아요수 : {one[5]}\n이어그리기 : {remix[str(one[6])]}\n커미션 : {comission[str(data[1])]}{author_fullname}", color=embedcolor)
         embed.set_image(url=one[1])
         await ctx.send(embed=embed, view=Random1(one[0], one[1], one[3], one[6], ctx.author, (await self.bot.fetch_channel(924526922728366090))))
+        await ctx.send(one)
 
 def setup(bot):
     bot.add_cog(Picture(bot))
